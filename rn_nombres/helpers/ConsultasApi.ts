@@ -1,22 +1,17 @@
 import axios from "axios"
 import { Probabilidad } from "../model/Tipos"
+import { consultarProbabilidadesOffLine, existeNombre, guardarProbabilidad } from "./ConsultaAlmacenamientoInterno"
 
 
-async function consultarProbabilidades(nombre:string):Promise<Array<Probabilidad>>{
+async function consultarProbabilidadesApi(nombre:string):Promise<Array<Probabilidad>>{
     const endpoint= `https://api.nationalize.io/`
-    const configuracion={
-                            params: {
-                                name:nombre
-                            },
-                            headers: {
-                                "User-Agent":"Nombres/1.0 (correo@dominio.com)",
-                                "Accept": "application/json"
-                            }
-                        }
-    const respuestaServidor= await axios.get(endpoint,configuracion)
+    const respuestaServidor= await axios.get(endpoint)
     const resultado= respuestaServidor.data.country
-    const listaPromises = resultado.map(rellenarCampoPais)
-    return await Promise.all(listaPromises)
+    for(let objeto of resultado){
+        objeto.pais = await consultarNombrePais(objeto.country_id)
+    }
+    await guardarProbabilidad(nombre,resultado)
+    return resultado
 
 }
 
@@ -31,4 +26,23 @@ async function rellenarCampoPais(objeto:Probabilidad):Promise<Probabilidad>{
     return objeto
 }
 
-export{consultarProbabilidades}
+async function consultarProbabilidades(nombre:string,online:boolean, usarCache:boolean){
+    let resultado = []
+    if(online){
+        if(usarCache){
+            const existe = await existeNombre(nombre)
+            if(existe){
+                resultado = await consultarProbabilidadesOffLine(nombre)
+            } else {
+                resultado = await consultarProbabilidadesApi(nombre)
+            }
+        }else{
+            resultado = await consultarProbabilidadesApi(nombre)
+        }
+    }else{
+        resultado = await consultarProbabilidadesOffLine(nombre)
+    }
+    return resultado
+}
+
+export{consultarProbabilidadesApi,rellenarCampoPais,consultarProbabilidades}

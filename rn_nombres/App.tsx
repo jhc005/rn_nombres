@@ -1,30 +1,38 @@
-import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
-import React, { ReactNode, useState } from 'react'
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import React, { ReactNode, useEffect, useState } from 'react'
 import { consultarProbabilidades } from './helpers/ConsultasApi'
-import ItemPaisProbabilidad from './components/ItemPaisProbabilidad'
 import { Probabilidad } from './model/Tipos'
 import BienvenidaLayer from './components/layers/BienvenidaLayer'
 import CargaLayer from './components/layers/CargaLayer'
 import ResultadosLayer from './components/layers/ResultadosLayer'
+import BotonModo from './components/BotonModo'
+import InformacionNombres from './components/InformacionNombres'
+import { borrarNombresOffLine, getNumeroNombreOffLine} from './helpers/ConsultaAlmacenamientoInterno'
 
 export default function App() {
   //variables de estado
   const [nombre,setNombre]=useState("")
   const [listaProbabilidades, setListaProbabilidades]=useState<Array<Probabilidad>>([])
   const [capaActiva,setCapaActiva]=useState(1)
+  const [online,setOnline]=useState(false)
+  const [totalNombresOffLine, setTotalNombresOffLine]=useState (0)
+  const [usarCache,setUsarCache] = useState(true)
+
+  useEffect( () =>{actualizarNumeroNombres() }, [listaProbabilidades] )
 
 
   //funciones auxiliares
   function botonPulsado(){
     if(validarNombre()){
       setCapaActiva(2)
-      consultarProbabilidades(nombre)
+      consultarProbabilidades(nombre,online,usarCache)
       .then(respuesta => {
         setListaProbabilidades(respuesta) 
         setCapaActiva(3)})
       .catch(error=> {
         Alert.alert("Error",error.toString())
         setCapaActiva(1)
+        setOnline(false)
       }
     )
     }else{
@@ -41,6 +49,23 @@ export default function App() {
             capaActiva===2 ? <CargaLayer/> :
             capaActiva===3 ? <ResultadosLayer listaProbabilidades={listaProbabilidades}/> : 
             <View/>
+  }
+
+  async function actualizarNumeroNombres(){
+    const total= await getNumeroNombreOffLine()
+    setTotalNombresOffLine(total)
+  }
+
+  function borrarNombres(){
+    Alert.alert(
+      "Desea borrar todos los datos?",
+      "Los datos eliminados no pueden ser recuperados",
+      [{text:"Aceptar", onPress: () =>{
+        borrarNombresOffLine()
+        setListaProbabilidades([])
+      }},
+        {text:"Cancelar"}]
+    )
   }
 
   return (
@@ -63,6 +88,11 @@ export default function App() {
         {
           getCapaActiva()
         }
+      </View>
+      <View style={styles.filaFondo}>
+        <BotonModo texto={"on line"} activado={online} setActivado={setOnline} />
+        <BotonModo texto={"cache"} activado={usarCache} setActivado={setUsarCache} />
+        <InformacionNombres totalNombresOffLine={totalNombresOffLine}/>
       </View>
     </View>
   )
@@ -115,5 +145,11 @@ const styles = StyleSheet.create({
   },
   contenedorCapas:{
     flex:1
+  },
+  filaFondo:{
+    flexDirection:"row",
+    alignItems:"center",
+    justifyContent:"space-between",
+    paddingRight:20
   }
 })
